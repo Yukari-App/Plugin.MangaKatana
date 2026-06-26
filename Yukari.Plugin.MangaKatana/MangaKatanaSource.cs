@@ -104,7 +104,7 @@ public class MangaKatanaSource : IComicSource
             Author: author,
             Description: description,
             Tags: tags,
-            Year: null,
+            Year: 0, // TO-DO: return null in future
             CoverImageUrl: coverUrl,
             Langs: [SourceLanguage],
             Status: status
