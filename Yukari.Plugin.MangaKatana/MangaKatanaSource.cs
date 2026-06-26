@@ -1,4 +1,6 @@
-﻿using HtmlAgilityPack;
+﻿using System.Net;
+using System.Text.RegularExpressions;
+using HtmlAgilityPack;
 using Yukari.Core.Models;
 using Yukari.Core.Sources;
 
@@ -13,6 +15,8 @@ namespace Yukari.Plugin.MangaKatana;
 )]
 public class MangaKatanaSource : IComicSource
 {
+    private const string SourceLanguage = "en";
+
     private static IReadOnlyList<Filter>? _filters;
     private static IReadOnlyDictionary<string, string>? _languages;
 
@@ -30,7 +34,7 @@ public class MangaKatanaSource : IComicSource
         _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Yukari.Plugin.MangaKatana/0.1.0");
     }
 
-    public Task<IReadOnlyList<Comic>> SearchAsync(
+    public async Task<IReadOnlyList<Comic>> SearchAsync(
         string query,
         IReadOnlyDictionary<string, IReadOnlyList<string>> filters,
         int page = 1,
@@ -114,9 +118,54 @@ public class MangaKatanaSource : IComicSource
         throw new NotImplementedException();
     }
 
-    public Task<Comic?> GetDetailsAsync(string comicId, CancellationToken ct = default)
+    public async Task<Comic?> GetDetailsAsync(string comicId, CancellationToken ct = default)
     {
-        throw new NotImplementedException();
+        var detailsUrl = $"{BaseUrl}/manga/{comicId}";
+
+        var html = await GetHTMLAsync(detailsUrl, ct);
+        if (html == null)
+            return null;
+
+        var doc = new HtmlDocument();
+        doc.LoadHtml(html);
+
+        var titleNode = doc.DocumentNode.SelectSingleNode("//h1[contains(@class, 'heading')]");
+        string title = titleNode?.InnerText.Trim() ?? "Unknown Title";
+
+        var summaryNode = doc.DocumentNode.SelectSingleNode("//div[contains(@class, 'summary')]/p");
+        string? description = summaryNode?.InnerText.Trim();
+
+        var coverImgNode = doc.DocumentNode.SelectSingleNode(
+            "//div[contains(@class, 'cover')]//img"
+        );
+        string? coverUrl = coverImgNode?.GetAttributeValue("src", null!);
+
+        var authorNodes = doc.DocumentNode.SelectNodes("//div[contains(@class, 'authors')]//a");
+        string[] authors =
+            authorNodes?.Select(a => a.InnerText.Trim()).ToArray() ?? Array.Empty<string>();
+        string? author = authors.FirstOrDefault();
+
+        var genreNodes = doc.DocumentNode.SelectNodes("//div[contains(@class, 'genres')]//a");
+        string[] tags =
+            genreNodes?.Select(g => g.InnerText.Trim()).ToArray() ?? Array.Empty<string>();
+
+        var statusNode = doc.DocumentNode.SelectSingleNode("//div[contains(@class, 'status')]");
+        string? statusStr = statusNode?.InnerText.Trim();
+        ComicStatus status = GetComicStatus(statusStr);
+
+        return new Comic(
+            Id: comicId,
+            ComicUrl: detailsUrl,
+            Slug: comicId,
+            Title: title,
+            Author: author,
+            Description: description,
+            Tags: tags,
+            Year: null,
+            CoverImageUrl: coverUrl,
+            Langs: [SourceLanguage],
+            Status: status
+        );
     }
 
     public Task<IReadOnlyList<Chapter>> GetAllChaptersAsync(
