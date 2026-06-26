@@ -37,7 +37,72 @@ public class MangaKatanaSource : IComicSource
         CancellationToken ct = default
     )
     {
-        throw new NotImplementedException();
+        var queryParams = new Dictionary<string, string[]>
+        {
+            ["search"] = [query],
+            ["search_by"] = ["m_name"],
+        };
+
+        string searchUrl = $"{BaseUrl}/page/{page}?{ToQueryString(queryParams)}";
+
+        var html = await GetHTMLWithRedirectHandlingAsync(searchUrl, ct);
+        if (html == null)
+            return Array.Empty<Comic>();
+
+        var doc = new HtmlDocument();
+        doc.LoadHtml(html);
+
+        var bookList = doc.DocumentNode.SelectSingleNode("//div[@id='book_list']");
+        if (bookList == null)
+        {
+            var comic = ParseSeriesPage(doc);
+            return comic != null ? new List<Comic> { comic } : Array.Empty<Comic>();
+        }
+
+        var items = doc.DocumentNode.SelectNodes(
+            "//div[@id='book_list']//div[contains(@class, 'item')]"
+        );
+        if (items is not { Count: > 0 })
+            return Array.Empty<Comic>();
+
+        var comics = new List<Comic>();
+
+        foreach (var item in items)
+        {
+            var linkNode = item.SelectSingleNode(".//div[contains(@class, 'media')]//a");
+            if (linkNode == null)
+                continue;
+
+            string href = linkNode.GetAttributeValue("href", "");
+            string? id = ExtractIdFromUrl(href);
+            if (string.IsNullOrEmpty(id))
+                continue;
+
+            var titleNode = item.SelectSingleNode(
+                ".//div[contains(@class, 'text')]//h3[contains(@class, 'title')]//a"
+            );
+            string title = titleNode?.InnerText.Trim() ?? "Unknown Title";
+
+            var imgNode = item.SelectSingleNode(".//div[contains(@class, 'media')]//img");
+            string? coverUrl = imgNode?.GetAttributeValue("src", null!);
+
+            var comic = new Comic(
+                Id: id,
+                ComicUrl: null,
+                Slug: id,
+                Title: title,
+                Author: null,
+                Description: null,
+                Tags: [],
+                Year: null,
+                CoverImageUrl: coverUrl,
+                Langs: []
+            );
+
+            comics.Add(comic);
+        }
+
+        return comics;
     }
 
     public Task<IReadOnlyList<Comic>> GetTrendingAsync(
