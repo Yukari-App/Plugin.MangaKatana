@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using System.Globalization;
+using System.Net;
 using System.Text.RegularExpressions;
 using HtmlAgilityPack;
 using Yukari.Core.Models;
@@ -111,13 +112,69 @@ public class MangaKatanaSource : IComicSource
         );
     }
 
-    public Task<IReadOnlyList<Chapter>> GetAllChaptersAsync(
+    public async Task<IReadOnlyList<Chapter>> GetAllChaptersAsync(
         string comicId,
         string language,
         CancellationToken ct = default
     )
     {
-        throw new NotImplementedException();
+        var chaptersUrl = $"{BaseUrl}/manga/{comicId}";
+
+        var html = await GetHTMLAsync(chaptersUrl, ct);
+        if (html == null)
+            return Array.Empty<Chapter>();
+
+        var doc = new HtmlDocument();
+        doc.LoadHtml(html);
+
+        var chapterRows = doc.DocumentNode.SelectNodes(
+            "//div[contains(@class, 'chapters')]//table//tbody//tr"
+        );
+        if (chapterRows is not { Count: > 0 })
+            return Array.Empty<Chapter>();
+
+        var chapters = new List<Chapter>();
+
+        // MangaKatana returns chapters in descending order (newest first).
+        // Reverse to get chronological order (oldest first).
+        foreach (var row in chapterRows.Reverse())
+        {
+            var linkNode = row.SelectSingleNode(".//td[1]//a");
+            if (linkNode == null)
+                continue;
+
+            string href = linkNode.GetAttributeValue("href", "");
+            string? chapterId = ExtractChapterIdFromUrl(href);
+            if (string.IsNullOrEmpty(chapterId))
+                continue;
+
+            string title = linkNode.InnerText.Trim();
+
+            var timeNode = row.SelectSingleNode(".//td[2]//div[contains(@class, 'update_time')]");
+            string? dateStr = timeNode?.InnerText.Trim();
+
+            DateTime? lastUpdate = null;
+            if (!string.IsNullOrEmpty(dateStr))
+                if (DateTime.TryParse(dateStr, out DateTime dt))
+                    lastUpdate = dt;
+
+            var chapter = new Chapter(
+                Id: chapterId,
+                Title: title,
+                Number: null,
+                Volume: null,
+                Language: language,
+                Groups: [],
+                LastUpdate: lastUpdate.HasValue
+                    ? DateOnly.FromDateTime(lastUpdate.Value)
+                    : DateOnly.MinValue,
+                Pages: null
+            );
+
+            chapters.Add(chapter);
+        }
+
+        return chapters;
     }
 
     public Task<IReadOnlyList<ChapterPage>> GetChapterPagesAsync(
@@ -335,6 +392,14 @@ public class MangaKatanaSource : IComicSource
         if (string.IsNullOrEmpty(url))
             return null;
         var match = Regex.Match(url, @"/manga/([^/]+)$");
+        return match.Success ? match.Groups[1].Value : null;
+    }
+
+    private static string? ExtractChapterIdFromUrl(string? url)
+    {
+        if (string.IsNullOrEmpty(url))
+            return null;
+        var match = Regex.Match(url, @"/([^/]+)$");
         return match.Success ? match.Groups[1].Value : null;
     }
 
