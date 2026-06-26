@@ -8,7 +8,7 @@ namespace Yukari.Plugin.MangaKatana;
 
 [ComicSourceMetadata(
     "MangaKatana",
-    "0.1.0-Alpha+core2.3.0",
+    "1.0.0+core2.3.0",
     "https://github.com/Yukari-App/Plugin.MangaKatana/releases",
     "https://mangakatana.com/static/img/fav.png",
     "Read manga from MangaKatana, a simple and fast manga reader."
@@ -31,7 +31,7 @@ public class MangaKatanaSource : IComicSource
 
     static MangaKatanaSource()
     {
-        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Yukari.Plugin.MangaKatana/0.1.0");
+        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Yukari.Plugin.MangaKatana/1.0.0");
     }
 
     public async Task<IReadOnlyList<Comic>> SearchAsync(
