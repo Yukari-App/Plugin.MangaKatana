@@ -1,5 +1,4 @@
-﻿using System.Globalization;
-using System.Net;
+﻿using System.Net;
 using System.Text.RegularExpressions;
 using HtmlAgilityPack;
 using Yukari.Core.Models;
@@ -177,13 +176,34 @@ public class MangaKatanaSource : IComicSource
         return chapters;
     }
 
-    public Task<IReadOnlyList<ChapterPage>> GetChapterPagesAsync(
+    public async Task<IReadOnlyList<ChapterPage>> GetChapterPagesAsync(
         string comicId,
         string chapterId,
         CancellationToken ct = default
     )
     {
-        throw new NotImplementedException();
+        var pagesUrl = $"{BaseUrl}/manga/{comicId}/{chapterId}";
+
+        var html = await GetHTMLAsync(pagesUrl, ct);
+        if (html == null)
+            return Array.Empty<ChapterPage>();
+
+        var match = Regex.Match(html, @"var thzq\s*=\s*\[(.*?)\];", RegexOptions.Singleline);
+        if (!match.Success)
+            return Array.Empty<ChapterPage>();
+
+        var urlMatches = Regex.Matches(match.Groups[1].Value, @"'([^']+)'");
+        if (urlMatches.Count == 0)
+            return Array.Empty<ChapterPage>();
+
+        var pages = new List<ChapterPage>();
+        for (int i = 0; i < urlMatches.Count; i++)
+        {
+            string imageUrl = urlMatches[i].Groups[1].Value;
+            pages.Add(new ChapterPage(Number: i + 1, ImageUrl: imageUrl));
+        }
+
+        return pages;
     }
 
     public ValueTask DisposeAsync()
@@ -325,10 +345,7 @@ public class MangaKatanaSource : IComicSource
             {
                 throw;
             }
-            catch (Exception ex)
-                when (attempt < maxRetries
-                    && (ex is HttpRequestException || ex is TaskCanceledException)
-                )
+            catch (Exception ex) when (attempt < maxRetries && (ex is HttpRequestException))
             {
                 await Task.Delay(1000 * attempt, ct);
                 continue;
@@ -358,7 +375,7 @@ public class MangaKatanaSource : IComicSource
         if (metaRefresh != null)
         {
             var content = metaRefresh.GetAttributeValue("content", "");
-            var match = Regex.Match(content, @"url=(.+)", RegexOptions.IgnoreCase);
+            var match = Regex.Match(content.Trim('\'', '"'), @"url=(.+)", RegexOptions.IgnoreCase);
             if (match.Success)
             {
                 var redirectUrl = match.Groups[1].Value.Trim();
@@ -399,7 +416,7 @@ public class MangaKatanaSource : IComicSource
     {
         if (string.IsNullOrEmpty(url))
             return null;
-        var match = Regex.Match(url, @"/([^/]+)$");
+        var match = Regex.Match(url.TrimEnd('/'), @"/([^/]+)$");
         return match.Success ? match.Groups[1].Value : null;
     }
 
