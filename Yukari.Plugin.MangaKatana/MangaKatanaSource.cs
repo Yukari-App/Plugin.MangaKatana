@@ -13,7 +13,7 @@ namespace Yukari.Plugin.MangaKatana;
     "https://mangakatana.com/static/img/fav.png",
     "Read manga from MangaKatana, a simple and fast manga reader."
 )]
-public class MangaKatanaSource : IComicSource
+public class MangaKatanaSource : IComicSource, IRequiresHttpClient
 {
     private const string SourceLanguage = "en";
 
@@ -27,12 +27,9 @@ public class MangaKatanaSource : IComicSource
 
     private const string BaseUrl = "https://mangakatana.com";
 
-    private static readonly HttpClient _httpClient = new HttpClient();
+    private ISharedHttpClient? _httpClient;
 
-    static MangaKatanaSource()
-    {
-        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Yukari.Plugin.MangaKatana/1.0.1");
-    }
+    public void SetHttpClient(ISharedHttpClient httpClient) => _httpClient = httpClient;
 
     public async Task<IReadOnlyList<Comic>> SearchAsync(
         string query,
@@ -206,6 +203,29 @@ public class MangaKatanaSource : IComicSource
         return pages;
     }
 
+    public async Task<byte[]?> GetImageBytesAsync(string imageUrl, CancellationToken ct = default)
+    {
+        if (string.IsNullOrEmpty(imageUrl))
+            return null;
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, imageUrl);
+        request.Headers.Add("Referer", BaseUrl);
+
+        using var response = await _httpClient!.SendAsync(request, ct);
+
+        if (response.StatusCode == HttpStatusCode.TooManyRequests)
+            throw new HttpRequestException(
+                "MangaKatana Rate Limit Exceeded. Try again later.",
+                null,
+                HttpStatusCode.TooManyRequests
+            );
+
+        if (!response.IsSuccessStatusCode)
+            return null;
+
+        return await response.Content.ReadAsByteArrayAsync(ct);
+    }
+
     public ValueTask DisposeAsync()
     {
         return ValueTask.CompletedTask;
@@ -304,7 +324,7 @@ public class MangaKatanaSource : IComicSource
         );
     }
 
-    private static async Task<string?> GetHTMLAsync(string url, CancellationToken ct = default)
+    private async Task<string?> GetHTMLAsync(string url, CancellationToken ct = default)
     {
         const int maxRetries = 3;
         int attempt = 0;
@@ -313,7 +333,7 @@ public class MangaKatanaSource : IComicSource
             attempt++;
             try
             {
-                using var response = await _httpClient.GetAsync(url, ct);
+                using var response = await _httpClient!.SendAsync(new(HttpMethod.Get, url), ct);
 
                 if (response.StatusCode == HttpStatusCode.TooManyRequests)
                     throw new HttpRequestException(
@@ -360,7 +380,7 @@ public class MangaKatanaSource : IComicSource
         return null;
     }
 
-    private static async Task<string?> GetHTMLWithRedirectHandlingAsync(
+    private async Task<string?> GetHTMLWithRedirectHandlingAsync(
         string url,
         CancellationToken ct = default
     )
