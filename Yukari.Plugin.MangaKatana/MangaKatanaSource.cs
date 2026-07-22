@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 using System.Text.RegularExpressions;
 using HtmlAgilityPack;
 using Yukari.Core.Models;
@@ -8,7 +8,7 @@ namespace Yukari.Plugin.MangaKatana;
 
 [ComicSourceMetadata(
     "MangaKatana",
-    "1.0.1+core2.3.0",
+    "1.1.0+core2.4.0",
     "https://github.com/Yukari-App/Plugin.MangaKatana/releases",
     "https://mangakatana.com/static/img/fav.png",
     "Read manga from MangaKatana, a simple and fast manga reader."
