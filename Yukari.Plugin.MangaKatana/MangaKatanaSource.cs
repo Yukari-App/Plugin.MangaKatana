@@ -3,12 +3,13 @@ using System.Text.RegularExpressions;
 using HtmlAgilityPack;
 using Yukari.Core.Models;
 using Yukari.Core.Sources;
+using Yukari.Core.Sources.Http;
 
 namespace Yukari.Plugin.MangaKatana;
 
 [ComicSourceMetadata(
     "MangaKatana",
-    "1.1.0+core2.4.0",
+    "1.2.0+core2.5.0",
     "https://github.com/Yukari-App/Plugin.MangaKatana/releases",
     "https://mangakatana.com/static/img/fav.png",
     "Read manga from MangaKatana, a simple and fast manga reader."
@@ -96,7 +97,6 @@ public class MangaKatanaSource : IComicSource, IRequiresHttpClient
         return new Comic(
             Id: comicId,
             ComicUrl: detailsUrl,
-            Slug: comicId,
             Title: title,
             Author: author,
             Description: description,
@@ -149,10 +149,10 @@ public class MangaKatanaSource : IComicSource, IRequiresHttpClient
             var timeNode = row.SelectSingleNode(".//td[2]//div[contains(@class, 'update_time')]");
             string? dateStr = timeNode?.InnerText.Trim();
 
-            DateTime? lastUpdate = null;
+            DateOnly? lastUpdate = null;
             if (!string.IsNullOrEmpty(dateStr))
                 if (DateTime.TryParse(dateStr, out DateTime dt))
-                    lastUpdate = dt;
+                    lastUpdate = DateOnly.FromDateTime(dt);
 
             var chapter = new Chapter(
                 Id: chapterId,
@@ -161,9 +161,7 @@ public class MangaKatanaSource : IComicSource, IRequiresHttpClient
                 Volume: null,
                 Language: language,
                 Groups: [],
-                LastUpdate: lastUpdate.HasValue
-                    ? DateOnly.FromDateTime(lastUpdate.Value)
-                    : DateOnly.MinValue,
+                LastUpdate: lastUpdate,
                 Pages: null
             );
 
@@ -277,7 +275,6 @@ public class MangaKatanaSource : IComicSource, IRequiresHttpClient
             var comic = new Comic(
                 Id: id,
                 ComicUrl: null,
-                Slug: id,
                 Title: title,
                 Author: null,
                 Description: null,
@@ -313,7 +310,6 @@ public class MangaKatanaSource : IComicSource, IRequiresHttpClient
         return new Comic(
             Id: id,
             ComicUrl: null,
-            Slug: id,
             Title: title,
             Author: null,
             Description: null,
