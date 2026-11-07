@@ -9,7 +9,7 @@ namespace Yukari.Plugin.MangaKatana;
 
 [ComicSourceMetadata(
     "MangaKatana",
-    "1.2.0+core2.5.0",
+    "1.3.0+core2.6.0",
     "https://github.com/Yukari-App/Plugin.MangaKatana/releases",
     "https://mangakatana.com/static/img/fav.png",
     "Read manga from MangaKatana, a simple and fast manga reader."
